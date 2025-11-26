@@ -95,12 +95,29 @@ results.BorderSizePixel = 0
 results.Parent = main
 Instance.new("UICorner", results).CornerRadius = UDim.new(0,10)
 
-local layout = Instance.new("UIListLayout", results)
-layout.Padding = UDim.new(0, 6)
-layout.SortOrder = Enum.SortOrder.LayoutOrder
+-- UIListLayout should be (re)created if needed
+local function ensureLayout()
+    for _, v in ipairs(results:GetChildren()) do
+        if v:IsA("UIListLayout") then
+            return v
+        end
+    end
+    local layout = Instance.new("UIListLayout")
+    layout.Padding = UDim.new(0, 6)
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Parent = results
+    return layout
+end
 
 local function scanForWord(word)
-    results:ClearAllChildren()
+    for _, v in ipairs(results:GetChildren()) do
+        if not v:IsA("UIListLayout") then
+            v:Destroy()
+        end
+    end
+    local layout = ensureLayout()
+    -- Avoid lag by yielding occasionally
+    local added = 0
     for _, obj in ipairs(game:GetDescendants()) do
         if obj.Name:lower():find(word:lower()) then
             local item = Instance.new("TextLabel")
@@ -113,6 +130,10 @@ local function scanForWord(word)
             item.Parent = results
             local c = Instance.new("UICorner", item)
             c.CornerRadius = UDim.new(0,8)
+            added = added + 1
+            if added % 20 == 0 then
+                task.wait()
+            end
         end
     end
     results.CanvasSize = UDim2.new(0,0,0,layout.AbsoluteContentSize.Y + 10)
@@ -121,10 +142,11 @@ end
 local dragging = false
 local dragStart, startPos
 
+-- InputChanged connections should be made only once
 local function enableDrag(frame)
     frame.InputBegan:Connect(function(i)
         if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
+            dragging = frame -- use frame handle for dragging
             dragStart = i.Position
             startPos = frame.Position
         end
@@ -132,17 +154,20 @@ local function enableDrag(frame)
 
     frame.InputEnded:Connect(function(i)
         if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-            dragging = false
-        end
-    end)
-
-    game:GetService("UserInputService").InputChanged:Connect(function(i)
-        if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
-            local delta = i.Position - dragStart
-            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+            if dragging == frame then
+                dragging = false
+            end
         end
     end)
 end
+
+-- Only one connection for UserInputService.InputChanged!
+game:GetService("UserInputService").InputChanged:Connect(function(i)
+    if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+        local delta = i.Position - dragStart
+        dragging.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
 
 enableDrag(main)
 enableDrag(openHolder)
