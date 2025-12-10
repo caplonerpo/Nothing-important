@@ -1,5 +1,3 @@
-–// CLEAN MODERN UI LIBRARY (LOCAL ONLY)
-
 local TweenService = game:GetService(“TweenService”) local
 UserInputService = game:GetService(“UserInputService”)
 
